@@ -98,6 +98,7 @@ else:
                 st.session_state['status_expanded'] = True
             with st.status("Searching DOIs in OpenAlex", expanded=st.session_state.get('status_expanded', True)) as status:
                 df_dois['doi_submitted'] = df_dois['doi_submitted'].str.replace('https://doi.org/', '', regex=False)
+                df_dois['doi_submitted'] = df_dois['doi_submitted'].str.strip().str.lower()
 
                 # df = pd.read_csv('your_doi_file.csv') or use your existing df
                 df_dois['doi_submitted'] = df_dois['doi_submitted'].str.strip().str.replace('https://doi.org/', '', regex=False)
@@ -125,13 +126,19 @@ else:
 
                 # Normalize and flatten nested fields
                 results_df = pd.json_normalize(all_results, sep='.')
+                results_df = results_df.drop_duplicates(subset='id')
 
                 # Add cleaned DOI for merging
                 if not results_df.empty and 'doi' in results_df.columns:
                     results_df['doi_submitted'] = results_df['doi'].str.replace('https://doi.org/', '', regex=False)
+                    results_df['doi_submitted'] = results_df['doi_submitted'].str.strip().str.lower()
 
                     # Merge with original DOIs
                     merged_df = df_dois.merge(results_df, on='doi_submitted', how='left')
+
+                    duplicates_df = merged_df[merged_df.duplicated(subset='doi', keep=False)]
+                    duplicates_df = duplicates_df.reset_index(drop=True)
+
                     merged_df = merged_df.loc[:, ~merged_df.columns.str.startswith('abstract_inverted_index.')]
                     all_results_df = merged_df.copy()
                     merged_df = merged_df.dropna(subset='id')
@@ -140,7 +147,11 @@ else:
                         st.warning("No DOIs found in the OpenAlex database.")
                     else:
                         num_results = merged_df['id'].notnull().sum()
-                        st.success(f"{num_results} result(s) found.")
+                        if not duplicates_df.empty:
+                            duplicate_count = duplicates_df['doi'].nunique()
+                            st.success(f"{num_results} result(s) found with {duplicate_count} duplicate(s).")
+                        else:
+                            st.success(f"{num_results} result(s) found.")
 
                     oa_status_summary = merged_df['open_access.oa_status'].value_counts(dropna=False).reset_index()
                     oa_status_summary.columns = ['OA status', '# Outputs']
@@ -151,7 +162,12 @@ else:
 
                     # OA Summary
                     @st.fragment
-                    def results(merged_df, oa_summary, oa_status_summary):                        
+                    def results(merged_df, oa_summary, oa_status_summary):
+                        if not duplicates_df.empty:
+                            duplicate_count = duplicates_df['doi'].nunique()
+                            show_duplicates = st.toggle(f'{duplicate_count} duplicate(s) found. Display duplicates.')
+                            if show_duplicates:
+                                duplicates_df                     
                         st.subheader("Open Access Status Summary", anchor=False)
                         if len(oa_summary) >= 1:
                             items = [
