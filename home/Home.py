@@ -12,7 +12,10 @@ import plotly.express as px
 import time
 from sidebar_content import sidebar_content
 import pycountry
-
+import matplotlib.pyplot as plt
+import numpy as np
+from geopy.geocoders import Nominatim
+import pydeck as pdk
 
 st.set_page_config(layout = "wide", 
                     page_title='OpenAlex DOI Search Tool',
@@ -246,15 +249,44 @@ else:
                             
                             col1, col2 = st.columns([1,4])
                             with col1:
+                                custom_colors = {
+                                    "closed": "#d62728",   # soft red
+                                    "green": "#2ca02c",    # muted green
+                                    "gold": "#e6b800",     # warm gold
+                                    "hybrid": "#1f77b4",   # calm blue
+                                    "bronze": "#b87333"    # bronze tone
+                                }
                                 if selected_statuses:
                                     oa_status_summary = filtered_df['open_access.oa_status'].value_counts(dropna=False).reset_index()
                                     oa_status_summary.columns = ['OA status', '# Outputs']
                                     # merged_df['open_access.is_oa'] = merged_df['open_access.is_oa'].map({True: 'Open Access', False: 'Closed Access'})
                                     oa_summary = merged_df['open_access.is_oa'].value_counts(dropna=False).reset_index()
                                     oa_summary.columns = ['Is OA?', '# Outputs']
-                                    st.dataframe(oa_status_summary, hide_index =True,  use_container_width=False)
+                                    table_view = st.toggle('Display as a table', key='OAstatus1')
+                                    if table_view:
+                                        st.dataframe(oa_status_summary, hide_index =True,  use_container_width=False)
+                                    else:
+                                        fig = px.pie(oa_status_summary,
+                                                    names="OA status",
+                                                    values="# Outputs",
+                                                    title="Open Access Status",
+                                                    color="OA status",
+                                                    color_discrete_map=custom_colors)
+
+                                        st.plotly_chart(fig, use_container_width=True)
                                 else:
-                                    st.dataframe(oa_status_summary, hide_index =True,  use_container_width=False)
+                                    table_view = st.toggle('Display as a table', key='OAstatus2')
+                                    if table_view:
+                                        st.dataframe(oa_status_summary, hide_index =True,  use_container_width=False)
+                                    else:
+                                        fig = px.pie(oa_status_summary,
+                                                    names="OA status",
+                                                    values="# Outputs",
+                                                    title="Open Access Status",
+                                                    color="OA status",
+                                                    color_discrete_map=custom_colors)
+
+                                        st.plotly_chart(fig, use_container_width=True)
                             with col2:
                                 
                                 def safe_get_nested(row, path):
@@ -370,6 +402,57 @@ else:
                                 # Show in Streamlit
                                 st.subheader("Country Affiliations", anchor=False)
                                 st.dataframe(country_freq, hide_index=True, use_container_width=False)
+
+                        st.subheader("Topics and SDGs", anchor=False)
+                        with st.expander('Results', expanded= True):
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                st.write('**Primary Topics**')
+                                if selected_statuses:
+                                    top_topics = filtered_raw_df['primary_topic.field.display_name'].value_counts(dropna=False).reset_index()
+                                else:
+                                    top_topics = merged_df['primary_topic.field.display_name'].value_counts(dropna=False).reset_index()
+                                top_topics.columns = ['Primary topic', '# Outputs']
+                                top_topics = top_topics.dropna()
+                                table_view = st.toggle('Display as a table')
+                                if table_view:
+                                    col1.dataframe(top_topics, hide_index=True,  use_container_width=False)
+                                else:
+                                    top_topics = top_topics.sort_values(by="# Outputs", ascending=True)
+                                    fig = px.bar(top_topics, 
+                                                x="# Outputs", 
+                                                y="Primary topic", 
+                                                orientation='h',
+                                                title="Outputs by Primary Topic",
+                                                labels={"# Outputs": "Number of Outputs", "Primary topic": "Topic"},
+                                                color_discrete_sequence=["#636EFA"])
+
+                                    col1.plotly_chart(fig)
+                            with col2:
+                                st.write('**Sustainable Development Goals (SDGs)**')
+                                if selected_statuses:
+                                    sdg_df = filtered_raw_df.explode('sustainable_development_goals').reset_index(drop=True)
+                                else:
+                                    sdg_df = merged_df.explode('sustainable_development_goals').reset_index(drop=True)
+                                sdg_df = pd.json_normalize(sdg_df['sustainable_development_goals']).reset_index(drop=True)
+                                if sdg_df.empty:
+                                    st.warning('No SDG found')
+                                else:
+                                    sdg_df = sdg_df["display_name"].value_counts().reset_index()
+                                    sdg_df.columns = ["SDG name", "# Outputs"]
+                                    table_view = st.toggle('Display as a table', key='sdg')
+                                    if table_view:
+                                        col2.dataframe(sdg_df, hide_index=True,  use_container_width=False)
+                                    else:
+                                        fig = px.bar(sdg_df.sort_values("# Outputs", ascending=True),
+                                                    x="# Outputs", y="SDG name",
+                                                    orientation='h',
+                                                    title="Number of Outputs by SDG",
+                                                    labels={"# Outputs": "Number of Outputs", "SDG name": "Sustainable Development Goal"},
+                                                    color_discrete_sequence=["#636EFA"])
+
+                                        col2.plotly_chart(fig, use_container_width=True)
+
                         st.subheader('Metrics', anchor=False)
                         with st.expander('Results', expanded=True):
                             if selected_statuses:
