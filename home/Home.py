@@ -416,16 +416,17 @@ else:
                                 no_topics = top_topics['Primary topic'].nunique()
                                 st.write(f'{no_topics} primary topics found')
                                 top_topics = top_topics.dropna()
-                                table_view = st.toggle('Display as a table')
+                                table_view = st.toggle('Display all topics as a table')
                                 if table_view:
                                     col1.dataframe(top_topics, hide_index=True,  use_container_width=False)
                                 else:
                                     top_topics = top_topics.sort_values(by="# Outputs", ascending=True)
+                                    top_topics = top_topics.head(10)
                                     fig = px.bar(top_topics, 
                                                 x="# Outputs", 
                                                 y="Primary topic", 
                                                 orientation='h',
-                                                title="Outputs by Primary Topic",
+                                                title="Outputs by Primary Topic (Top 10)",
                                                 labels={"# Outputs": "Number of Outputs", "Primary topic": "Topic"},
                                                 color_discrete_sequence=["#636EFA"])
 
@@ -452,14 +453,15 @@ else:
                                     sdg_df.columns = ["SDG name", "# Outputs"]
                                     no_sdgs = sdg_df['SDG name'].nunique()
                                     st.write(f'{no_sdgs} SDGs found associated with {num_outputs_associated_with_sdgs} outputs')
-                                    table_view = st.toggle('Display as a table', key='sdg')
+                                    table_view = st.toggle('Display all SDG categories as a table', key='sdg')
                                     if table_view:
                                         col2.dataframe(sdg_df, hide_index=True,  use_container_width=False)
                                     else:
+                                        sdg_df = sdg_df.head(10)
                                         fig = px.bar(sdg_df.sort_values("# Outputs", ascending=True),
                                                     x="# Outputs", y="SDG name",
                                                     orientation='h',
-                                                    title="Number of Outputs by SDG",
+                                                    title="Number of Outputs by SDG (Top 10)",
                                                     labels={"# Outputs": "Number of Outputs", "SDG name": "Sustainable Development Goal"},
                                                     color_discrete_sequence=["#636EFA"])
 
@@ -488,14 +490,15 @@ else:
                                 funders_df.columns = ["Funder name", "Count"]
                                 no_funders = funders_df['Funder name'].nunique()
                                 st.write(f'{no_funders} funders found associated with {num_outputs_associated_with_funders} output(s)')                   
-                                table_view = st.toggle('Display as a table', key='funder')
+                                table_view = st.toggle('Display all funders as a table', key='funder')
                                 if table_view:
                                     st.dataframe(funders_df, hide_index=True,  use_container_width=False)
                                 else:
+                                    funders_df = funders_df.head(10)
                                     fig = px.bar(funders_df.sort_values("Count", ascending=True),
                                                 x="Count", y="Funder name",
                                                 orientation='h',
-                                                title="Number of Funders",
+                                                title="Top 10 Number of Funders",
                                                 labels={"Count": "Number of Funders", "Funder name": "Funder name"},
                                                 color_discrete_sequence=["#636EFA"])
                                     fig.update_layout(
