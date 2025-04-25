@@ -413,6 +413,8 @@ else:
                                 else:
                                     top_topics = merged_df['primary_topic.field.display_name'].value_counts(dropna=False).reset_index()
                                 top_topics.columns = ['Primary topic', '# Outputs']
+                                no_topics = top_topics['Primary topic'].nunique()
+                                st.write(f'{no_topics} primary topics found')
                                 top_topics = top_topics.dropna()
                                 table_view = st.toggle('Display as a table')
                                 if table_view:
@@ -432,14 +434,24 @@ else:
                                 st.write('**Sustainable Development Goals (SDGs)**')
                                 if selected_statuses:
                                     sdg_df = filtered_raw_df.explode('sustainable_development_goals').reset_index(drop=True)
+                                    outputs_associated_with_sdgs = filtered_raw_df[
+                                        filtered_raw_df['sustainable_development_goals'].notna() & filtered_raw_df['sustainable_development_goals'].astype(bool)
+                                    ]
+                                    num_outputs_associated_with_sdgs = len(outputs_associated_with_sdgs)
                                 else:
                                     sdg_df = merged_df.explode('sustainable_development_goals').reset_index(drop=True)
+                                    outputs_associated_with_sdgs = sdg_df[
+                                        sdg_df['sustainable_development_goals'].notna() & sdg_df['sustainable_development_goals'].astype(bool)
+                                    ]
+                                    num_outputs_associated_with_sdgs = len(outputs_associated_with_sdgs)
                                 sdg_df = pd.json_normalize(sdg_df['sustainable_development_goals']).reset_index(drop=True)
                                 if sdg_df.empty:
                                     st.warning('No SDG found')
                                 else:
                                     sdg_df = sdg_df["display_name"].value_counts().reset_index()
                                     sdg_df.columns = ["SDG name", "# Outputs"]
+                                    no_sdgs = sdg_df['SDG name'].nunique()
+                                    st.write(f'{no_sdgs} SDGs found associated with {num_outputs_associated_with_sdgs} outputs')
                                     table_view = st.toggle('Display as a table', key='sdg')
                                     if table_view:
                                         col2.dataframe(sdg_df, hide_index=True,  use_container_width=False)
@@ -453,6 +465,46 @@ else:
 
                                         col2.plotly_chart(fig, use_container_width=True)
 
+                        st.subheader("Funders", anchor=False)
+                        with st.expander('Results', expanded= True):
+                            st.write('**Funders**')
+                            if selected_statuses:
+                                funders_df = filtered_raw_df.explode('grants').reset_index(drop=True)
+                                outputs_associated_with_funders = filtered_raw_df[
+                                    filtered_raw_df['grants'].notna() & filtered_raw_df['grants'].astype(bool)
+                                ]
+                                num_outputs_associated_with_funders = len(outputs_associated_with_funders)
+                            else:
+                                funders_df = merged_df.explode('grants').reset_index(drop=True)
+                                outputs_associated_with_funders = merged_df[
+                                    merged_df['grants'].notna() & merged_df['grants'].astype(bool)
+                                ]
+                                num_outputs_associated_with_funders = len(outputs_associated_with_funders)
+                            funders_df = pd.json_normalize(funders_df['grants']).reset_index(drop=True)
+                            if funders_df.empty:
+                                st.warning('No funder found')
+                            else:
+                                funders_df = funders_df["funder_display_name"].value_counts().reset_index()
+                                funders_df.columns = ["Funder name", "Count"]
+                                no_funders = funders_df['Funder name'].nunique()
+                                st.write(f'{no_funders} funders found associated with {num_outputs_associated_with_funders} output(s)')                   
+                                table_view = st.toggle('Display as a table', key='funder')
+                                if table_view:
+                                    st.dataframe(funders_df, hide_index=True,  use_container_width=False)
+                                else:
+                                    fig = px.bar(funders_df.sort_values("Count", ascending=True),
+                                                x="Count", y="Funder name",
+                                                orientation='h',
+                                                title="Number of Funders",
+                                                labels={"Count": "Number of Funders", "Funder name": "Funder name"},
+                                                color_discrete_sequence=["#636EFA"])
+                                    fig.update_layout(
+                                        yaxis=dict(
+                                            tickfont=dict(size=14)  # Adjust size as needed
+                                        )
+                                    )
+                                    st.plotly_chart(fig, use_container_width=True)
+                                
                         st.subheader('Metrics', anchor=False)
                         with st.expander('Results', expanded=True):
                             if selected_statuses:
