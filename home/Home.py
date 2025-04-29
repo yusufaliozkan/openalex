@@ -576,7 +576,7 @@ else:
                 else:
                     st.error("No DOIs found in the OpenAlex database. Check the submitted DOIs and resubmit.")
                     df_dois
-                    status.update(label=f"Search complete without any results!", state="complete", expanded=True)
+                    # status.update(label=f"Search complete without any results!", state="complete", expanded=True)
 
 
 
