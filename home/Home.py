@@ -244,6 +244,7 @@ else:
                                 
                             else:
                                 filtered_df = merged_df.copy()
+                            df_unpaywall = filtered_df.copy()
 
                             # Display it in Streamlit
                             
@@ -311,7 +312,98 @@ else:
                                 filtered_df.index +=1
                                 filtered_df = filtered_df[['doi', 'type_crossref','primary_location.source.display_name', 'primary_location.source.host_organization_name', 'publication_year', 'publication_date', 'open_access.is_oa','open_access.oa_status', 'open_access.oa_url', 'primary_location.license']]
                                 filtered_df.columns = ['DOI', 'Type','Journal', 'Publisher','Publication year', 'Publication date','Is OA?', 'OA Status', 'OA URL', 'Licence']
-                                filtered_df
+                                st.dataframe(
+                                    filtered_df,
+                                    column_config={
+                                        'DOI':st.column_config.LinkColumn('DOI'),
+                                        'OA URL':st.column_config.LinkColumn('OA URL')
+                                    }
+                                    )
+
+                            display_unpaywall_option = st.checkbox('Check DOI(s) on Unpaywall')
+
+                            if display_unpaywall_option:
+                                def get_oa_info(doi):
+                                    url = f"https://api.unpaywall.org/v2/{doi}?email=email@ic.ac.uk"
+                                    try:
+                                        response = requests.get(url)
+                                        if response.status_code == 200:
+                                            data = response.json()
+                                            return pd.Series({
+                                                "oa_status": data.get("oa_status", "not_found"),
+                                                "publisher": data.get("publisher", "not_found")
+                                            })
+                                        else:
+                                            return pd.Series({"oa_status": "error", "publisher": "error"})
+                                    except:
+                                        return pd.Series({"oa_status": "error", "publisher": "error"})
+                                df_openalex_compare = filtered_df.copy()
+                                df_openalex_compare = df_openalex_compare[['DOI', 'OA Status']]
+                                df_openalex_compare = df_openalex_compare.rename(columns={'OA Status':'OA Status (OpenAlex)'})
+
+                                df_unpaywall = df_unpaywall[['doi']]
+                                df_unpaywall[["oa_status", "publisher"]]  = df_unpaywall['doi'].astype(str).apply(get_oa_info)
+                                df_unpaywall = df_unpaywall.rename(columns={'oa_status':'OA Status (Unpaywall)'})
+                                df_unpaywall = df_unpaywall.rename(columns={'doi':'DOI'})
+
+                                @st.fragment
+                                def results_unpaywall_compare(df_unpaywall, df_openalex_compare):
+                                    col1, col2 = st.columns([1,4])
+                                    with col1:
+                                        oa_status_summary_unpaywall = df_unpaywall['OA Status (Unpaywall)'].value_counts(dropna=False).reset_index()
+                                        oa_status_summary_unpaywall.columns = ['Is OA?', '# Outputs']
+                                        oa_status_summary_unpaywall = oa_status_summary_unpaywall[oa_status_summary_unpaywall['Is OA?']!='error']
+
+                                        custom_colors = {
+                                            "closed": "#d62728",   # soft red
+                                            "green": "#2ca02c",    # muted green
+                                            "gold": "#e6b800",     # warm gold
+                                            "hybrid": "#1f77b4",   # calm blue
+                                            "bronze": "#b87333"    # bronze tone
+                                        }
+                                        table_view = st.toggle('Display as a table', key='OAstatus_unpaywall')
+                                        if table_view:
+                                            st.dataframe(oa_status_summary_unpaywall, hide_index =True,  use_container_width=False)
+                                        else:
+                                            fig = px.pie(oa_status_summary_unpaywall,
+                                                        names="Is OA?",
+                                                        values="# Outputs",
+                                                        title="Open Access Status (Unpaywall)",
+                                                        color="Is OA?",
+                                                        color_discrete_map=custom_colors)
+
+                                            st.plotly_chart(fig, use_container_width=True)
+                                        # else:
+                                        #     table_view = st.toggle('Display as a table', key='OAstatus_unpaywall_2')
+                                        #     if table_view:
+                                        #         st.dataframe(oa_status_summary_unpaywall, hide_index =True,  use_container_width=False)
+                                        #     else:
+                                        #         oa_status_summary_unpaywall
+                                        #         fig = px.pie(oa_status_summary_unpaywall,
+                                        #                     names="Is OA?",
+                                        #                     values="# Outputs",
+                                        #                     title="Open Access Status (Unpaywall)",
+                                        #                     color="Is OA?",
+                                        #                     color_discrete_map=custom_colors)
+
+                                                # st.plotly_chart(fig, use_container_width=True)
+
+                                    with col2:
+                                        st.dataframe(df_unpaywall, hide_index=True)
+                                
+
+                                    compare = st.toggle('Compare OpenAlex results with Unpaywall')
+                                    if compare:
+                                        df_unpaywall = pd.merge(df_unpaywall[['DOI', 'OA Status (Unpaywall)']], df_openalex_compare[['DOI', 'OA Status (OpenAlex)']], on='DOI', how='inner')
+                                        
+                                        df_unpaywall = df_unpaywall[df_unpaywall['OA Status (Unpaywall)'] != df_unpaywall['OA Status (OpenAlex)']]
+                                        row_count = len(df_unpaywall)
+                                        if row_count == 0:
+                                            st.info('Unpaywall and OpenAlex show the same OA status for all DOI(s)')
+                                        else:
+                                            st.info('Displays only DOIs with differing OA status results between Unpaywall and OpenAlex')
+                                            st.dataframe(df_unpaywall, hide_index=True)
+                                results_unpaywall_compare(df_unpaywall,df_openalex_compare)
 
                         st.subheader("Journals and Publishers", anchor=False)
                         with st.expander('Results', expanded= True):
@@ -507,7 +599,49 @@ else:
                                         )
                                     )
                                     st.plotly_chart(fig, use_container_width=True)
-                                
+
+                        # st.subheader("Datasets", anchor=False)
+                        # with st.expander('Results', expanded= True):
+                        #     st.write('**Datasets**')
+                        #     if selected_statuses:
+                        #         datasets_df = filtered_raw_df.explode('datasets').reset_index(drop=True)
+                        #         outputs_with_datasets = filtered_raw_df[
+                        #             filtered_raw_df['datasets'].notna() & filtered_raw_df['datasets'].astype(bool)
+                        #         ]
+                        #         num_outputs_with_datasets = len(outputs_with_datasets)
+                        #     else:
+                        #         datasets_df = merged_df.explode('datasets').reset_index(drop=True)
+                        #         outputs_with_datasets = merged_df[
+                        #             merged_df['datasets'].notna() & merged_df['datasets'].astype(bool)
+                        #         ]
+                        #         num_outputs_with_datasets = len(outputs_with_datasets)
+                        #     datasets_df = pd.json_normalize(datasets_df['datasets']).reset_index(drop=True)
+                        #     datasets_df
+                        #     if datasets_df.empty:
+                        #         st.warning('No outputs found with a dataset')
+                        #     else:
+                        #         funders_df = funders_df["funder_display_name"].value_counts().reset_index()
+                        #         funders_df.columns = ["Funder name", "Count"]
+                        #         no_funders = funders_df['Funder name'].nunique()
+                        #         st.write(f'{no_funders} funders found associated with {num_outputs_associated_with_funders} output(s)')                   
+                        #         table_view = st.toggle('Display all funders as a table', key='funder')
+                        #         if table_view:
+                        #             st.dataframe(funders_df, hide_index=True,  use_container_width=False)
+                        #         else:
+                        #             funders_df = funders_df.head(10)
+                        #             fig = px.bar(funders_df.sort_values("Count", ascending=True),
+                        #                         x="Count", y="Funder name",
+                        #                         orientation='h',
+                        #                         title="Top 10 Number of Funders",
+                        #                         labels={"Count": "Number of Funders", "Funder name": "Funder name"},
+                        #                         color_discrete_sequence=["#636EFA"])
+                        #             fig.update_layout(
+                        #                 yaxis=dict(
+                        #                     tickfont=dict(size=14)  # Adjust size as needed
+                        #                 )
+                        #             )
+                        #             st.plotly_chart(fig, use_container_width=True)
+
                         st.subheader('Metrics', anchor=False)
                         with st.expander('Results', expanded=True):
                             if selected_statuses:
